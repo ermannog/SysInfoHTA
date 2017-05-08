@@ -7,15 +7,22 @@
     P {font-family: Lucida Console; font-size:x-small; margin-top: 2 px; margin-bottom: 6 px}
     textarea {font-family: Lucida Console; font-size:x-small}
     #pFooter {text-align:right; font-size:xx-small}
-      
+    TABLE.tableDetail {border-collapse: collapse; border-style: solid; border-width: 1px; border-color: Black; width: 100%; font-family: Lucida Console; font-size:xx-small}
+    THEAD.theadDetail {border-color: White; border-width: 1px; font-weight:bold; text-align:center; background-color:Black; color: White} 
+    TH.thDetail {border-color: White; border-width: 1px; border-style: solid} 
+    TD.tdDetail {border-color: Black; border-width: 1px; border-style: solid; text-align:left}
+    TD.tdDetailCenter {border-color: Black; border-width: 1px; border-style: solid; text-align:center}
+   
     @media print 
     {
-       #tblToolBar, #hrToolBar {display: none}
+        #tblToolBar, #hrToolBar {display: none}
+        THEAD.theadDetail {display: table-header-group; border-color: Black; background-color:White; color: Black}
+        TH.thDetail {border-color: Black}
     }
   </STYLE>
   <hta:application id="htaSysInfo" 
     applicationname="SysInfo.hta"
-    version="1.0"
+    version="2.0"
     singleinstance="yes"
     minimizeButton="no" 
     maximizeButton="yes" 
@@ -33,6 +40,7 @@
     Public QueryWin32ComputerSystem, ItemWin32ComputerSystem
     Public QueryWin32OperatingSystem, ItemWin32OperatingSystem
     Public HostName
+    Public PSoftwareInnerHtml
     
     Sub InitResources()     
       On Error Resume Next
@@ -49,10 +57,10 @@
       Set QueryWin32OperatingSystem = WMI.ExecQuery("SELECT * FROM Win32_OperatingSystem WHERE Primary=True")
       For Each ItemWin32OperatingSystem in QueryWin32OperatingSystem
         Exit For
-      Next
-      
+      Next          
+     
     End Sub
-    
+       
     Sub ReleaseResources()
       Set ItemWin32ComputerSystem = Nothing
       Set QueryWin32ComputerSystem = Nothing
@@ -125,6 +133,11 @@
       file.Writeline GetElementHTML(h2DotNET)
       file.Writeline GetElementHTML(pDotNET)       
 
+      If Not chkSoftware.checked Then
+        file.Writeline GetElementHTML(h2SoftwareInstalled)
+        file.Writeline GetElementHTML(pSoftwareInstalled) 
+      End If
+
       file.Writeline GetElementHTML(hrFooter)
       file.Writeline GetElementHTML(pFooter)
 
@@ -167,6 +180,22 @@
         lTmp = RemoveScriptText 
       Loop Until startIndex=0     
     End Function
+    
+    Sub chkSoftwareClick()
+      If chkSoftware.checked Then
+        h2SoftwareInstalled.style.visibility = "hidden"
+        pSoftwareInstalled.style.visibility = "hidden"
+        
+        h2SoftwareInstalled.style.display = "none"
+        pSoftwareInstalled.style.display = "none"        
+      Else
+        h2SoftwareInstalled.style.visibility = "visible"
+        pSoftwareInstalled.style.visibility = "visible"
+        
+        h2SoftwareInstalled.style.display = "inline"
+        pSoftwareInstalled.style.display = "inline"  
+      End If
+    End Sub
       
     Sub GetGeneralInfo()     
       On Error Resume Next
@@ -359,7 +388,6 @@
       
       'Controllers SCSI
       Set controllers = WMI.InstancesOf("Win32_SCSIController")
-      'index=1
       For Each c in controllers
         if UCase(Left(c.DeviceID,7)) = "PCI\VEN" Then              
           document.write(FormatRowHeader("Controller " & index, True) & c.Name)
@@ -392,7 +420,7 @@
     Sub GetNICInfo()
       Dim nics, nic, nicIndex, links, link, driver, drivers
 
-      'On Error Resume Next
+      On Error Resume Next
       Set nics = WMI.ExecQuery("SELECT * FROM Win32_NetworkAdapter")
 
       nicIndex = 1
@@ -439,10 +467,12 @@
       Dim dtmConvertedDate, lngDescription
 
       On Error Resume Next
+   
       Set dtmConvertedDate = CreateObject("WbemScripting.SWbemDateTime")
 
       document.write(FormatRowHeader("Version", False) & ItemWin32OperatingSystem.Caption & " " & ItemWin32OperatingSystem.CSDVersion)
       
+      Err.Clear()
       document.write(" " & ItemWin32OperatingSystem.OSArchitecture)
       If Err <> 0 Then     
         document.write(" " & Env("PROCESSOR_ARCHITECTURE"))
@@ -472,6 +502,52 @@
       document.write(" (last detect: " & ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Detect\LastSuccessTime") & ")")
 
       Set dtmConvertedDate = Nothing
+    End Sub
+    
+    Sub GetSoftwareInstalled()
+    
+      Dim softwares, software, name, installDate, vendor, version
+      
+      On Error Resume Next
+      
+      Set softwares = WMI.ExecQuery("SELECT IdentifyingNumber, Name, Vendor, Version FROM Win32_Product WHERE InstallState=5 ")
+      
+      document.write("<table class=""tableDetail"">")
+      document.write("<thead class=""theadDetail"">")
+      document.write("<tr>")
+      document.write("<th class=""thDetail"">Name</th>")
+      document.write("<th class=""thDetail"">Vendor</th>")
+      document.write("<th class=""thDetail"">Version</th>")
+      document.write("<th class=""thDetail"">Installed on</th>")
+      document.write("</tr>")
+      document.write("</thead>")
+      document.write("<tbody>")
+
+      For Each software In softwares
+        name = software.Name
+        If IsNull(name) Then
+          name=ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" & software.IdentifyingNumber & "\DisplayName")
+          If IsNull(name) Then
+            name = software.IdentifyingNumber
+          End If
+        End If
+        vendor = Software.Vendor
+        version= Software.Version
+        installDate=ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" & software.IdentifyingNumber & "\InstallDate")
+        If Not IsNull(installDate) Then
+          installDate = Left(installDate,4) & "-" & Mid(installDate,5,2) &  "-" & Mid(installDate,7,2)
+        End If
+
+        document.write("<tr>")      
+        document.write("<td class=""tdDetail"">" & name & "</td>")
+        document.write("<td class=""tdDetailCenter"">" & vendor & "</td>")
+        document.write("<td class=""tdDetailCenter"">" & version & "</td>")
+        document.write("<td class=""tdDetailCenter"">" & installDate & "</td>")
+        document.write("</tr>")
+      Next
+      
+      document.write("</tbody>")
+      document.write("</table>")
     End Sub
     
     Function DecodeDigitalProductID(id) 
@@ -605,6 +681,8 @@
   <tr>
     <td width="50 px"><button type="button" onclick="window.print()" id="btnPrint">Print</button></td>
     <td width="50 px"><button type="button" onclick="Save()" id="btnSave">Save</button></td>
+    <td width="160 px"><input type="checkbox" onclick="chkSoftwareClick()" id="chkSoftware">Hide 
+        software installed</td>
     <td style="text-align:right"><a href="http://sysinfohta.codeplex.com">SysInfo.hta</a> by <a href="http://blogs.sysadmin.it/ermannog">Ermanno Goletto</a></td>
   </tr>
 </table>
@@ -732,6 +810,9 @@ Else
 End If
 </script>
 </p>
+
+<h2 id="h2SoftwareInstalled" style="page-break-before:always">Software installed</h2> 
+<p id="pSoftwareInstalled"><script type="text/vbscript">GetSoftwareInstalled()</script></p>
 
 <hr id="hrFooter" />
 <p id="pFooter"><b>Scan performed by <script>document.write(htaSysInfo.applicationname & " " & htaSysInfo.version & " on " & Now)</script></b></p>

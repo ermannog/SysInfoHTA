@@ -1,0 +1,1 @@
+start %SystemRoot%\System32\mshta.exe %~dp0SysInfo.hta
