@@ -1,0 +1,823 @@
+<html> 
+<head>
+  <title>Wait scan system in progress...</title>
+  <STYLE type="text/css">
+    H1 { border-style:solid; border-width:1px 2px 2px 1px; font-size: medium}
+    H2 { font-size: small; margin-top: 6 px; margin-bottom: 2 px; border-bottom-style:solid; border-bottom-width: 1 px}  
+    P {font-family: Lucida Console; font-size:x-small; margin-top: 2 px; margin-bottom: 6 px}
+    textarea {font-family: Lucida Console; font-size:x-small}
+    #pFooter {text-align:right; font-size:xx-small}
+    TABLE.tableDetail {border-collapse: collapse; border-style: solid; border-width: 1px; border-color: Black; width: 100%; font-family: Lucida Console; font-size:xx-small}
+    THEAD.theadDetail {border-color: White; border-width: 1px; font-weight:bold; text-align:center; background-color:Black; color: White} 
+    TH.thDetail {border-color: White; border-width: 1px; border-style: solid} 
+    TD.tdDetail {border-color: Black; border-width: 1px; border-style: solid; text-align:left}
+    TD.tdDetailCenter {border-color: Black; border-width: 1px; border-style: solid; text-align:center}
+   
+    @media print 
+    {
+        #tblToolBar, #hrToolBar {display: none}
+        THEAD.theadDetail {display: table-header-group; border-color: Black; background-color:White; color: Black}
+        TH.thDetail {border-color: Black}
+    }
+  </STYLE>
+  <hta:application id="htaSysInfo" 
+    applicationname="SysInfo.hta"
+    version="2.0"
+    singleinstance="yes"
+    minimizeButton="no" 
+    maximizeButton="yes" 
+    windowstate="maximize"
+    borderStyle="static" /> 
+  <script language="vbscript">
+    Option Explicit
+    
+    Public Const RowHeaderWidth = 18
+    Public Const RowSubHeaderWidth = 8
+
+    Public WMI
+    Public Shell
+    Public Env
+    Public QueryWin32ComputerSystem, ItemWin32ComputerSystem
+    Public QueryWin32OperatingSystem, ItemWin32OperatingSystem
+    Public HostName
+    Public PSoftwareInnerHtml
+    
+    Sub InitResources()     
+      On Error Resume Next
+      
+      Set Shell = CreateObject("WScript.Shell")
+      Set Env = Shell.Environment("Process")
+      Set WMI = GetObject("winmgmts:")
+      
+      Set QueryWin32ComputerSystem = wmi.InstancesOf("Win32_ComputerSystem")
+      For Each ItemWin32ComputerSystem in QueryWin32ComputerSystem
+        Exit For
+      Next
+      
+      Set QueryWin32OperatingSystem = WMI.ExecQuery("SELECT * FROM Win32_OperatingSystem WHERE Primary=True")
+      For Each ItemWin32OperatingSystem in QueryWin32OperatingSystem
+        Exit For
+      Next          
+     
+    End Sub
+       
+    Sub ReleaseResources()
+      Set ItemWin32ComputerSystem = Nothing
+      Set QueryWin32ComputerSystem = Nothing
+
+      Set ItemWin32OperatingSystem = Nothing
+      Set QueryWin32OperatingSystem = Nothing
+
+      Set WMI = Nothing
+      Set Shell = Nothing
+      Set Env = Nothing
+      
+      document.title = htaSysInfo.applicationname & " " & htaSysInfo.version & " - System Information HTML Application"
+      txtNotes.focus()
+    End Sub
+      
+    Function GetHostName()          
+      On Error Resume Next
+      
+      HostName= ItemWin32ComputerSystem.name
+      GetHostName= ItemWin32ComputerSystem.Name   
+      
+      If ItemWin32OperatingSystem.Description <> "" Then
+        GetHostName = GetHostName & " - " & ItemWin32OperatingSystem.Description
+      End If    
+    End Function 
+    
+    Sub Save()
+      Dim fso, file, fileName, headID
+      
+      fileName = HostName & ".htm"
+      Set fso = CreateObject("Scripting.FileSystemObject") 
+      Set file = fso.OpenTextFile(fileName, 2, True) 
+        
+      file.WriteLine "<html>"
+      
+      file.Writeline "<head>"
+      file.Writeline "<title>" & HostName & "</title>" 
+      file.Writeline "<STYLE type=""text/css"">"
+      file.Writeline document.getElementsByTagName("head")(0).getElementsByTagName("style")(0).innerHTML
+      file.Writeline "</STYLE>"
+      file.Writeline "</head>"
+ 
+      file.WriteLine "<body>"   
+           
+      file.Writeline GetElementHTML(h1Header)
+
+      if txtNotes.value <> "" Then
+        file.Writeline GetElementHTML(h2Notes)
+        file.Writeline "<p>" & Replace(txtNotes.value, Chr(13), "<br>") & "</p>"
+      End If
+
+      file.Writeline GetElementHTML(h2General)
+      file.Writeline GetElementHTML(pGeneral)       
+    
+      file.Writeline GetElementHTML(h2Hardware)
+      file.Writeline GetElementHTML(pHardware)       
+
+      file.Writeline GetElementHTML(h2Storage)
+      file.Writeline GetElementHTML(pStorage)       
+
+      file.Writeline GetElementHTML(h2Network)
+      file.Writeline GetElementHTML(pNetwork)       
+ 
+      file.Writeline GetElementHTML(h2OperatingSystem)
+      file.Writeline GetElementHTML(pOperatingSystem)       
+
+      file.Writeline GetElementHTML(h2SystemComponents)
+      file.Writeline GetElementHTML(pSystemComponents)       
+
+      file.Writeline GetElementHTML(h2DotNET)
+      file.Writeline GetElementHTML(pDotNET)       
+
+      If Not chkSoftware.checked Then
+        file.Writeline GetElementHTML(h2SoftwareInstalled)
+        file.Writeline GetElementHTML(pSoftwareInstalled) 
+      End If
+
+      file.Writeline GetElementHTML(hrFooter)
+      file.Writeline GetElementHTML(pFooter)
+
+      file.WriteLine "</body>"
+      
+      file.WriteLine "</html>"
+
+      file.Close    
+    
+      Set file = Nothing
+      Set fso = Nothing
+    End Sub
+    
+    Function GetElementHTML(element)
+      GetElementHTML = "<" & element.tagName & " id=""" & element.id & """>" & _
+        RemoveScriptText(element.innerHTML) & _
+        "</" & element.tagName & ">"
+    End Function
+    
+    Function RemoveScriptText(htmlText)
+      Dim lTmp, startIndex, endIndex
+      
+      RemoveScriptText = htmlText
+      lTmp = htmlText
+
+      Do
+        startIndex = InStr(UCase(RemoveScriptText), "<SCRIPT")
+                
+        If startIndex > 0 Then
+          endIndex = InStrRev(UCase(RemoveScriptText), "SCRIPT>")
+                  
+          If endIndex > 0 And startIndex < endIndex Then
+            If startIndex > 1 Then lTmp= Mid(RemoveScriptText,1,startIndex-1)           
+           
+            lTmp = lTmp & Mid(RemoveScriptText, endIndex + 7, Len(RemoveScriptText) - endIndex - 6)
+          End If
+        End If
+        
+        RemoveScriptText = Trim(lTmp)
+        lTmp = RemoveScriptText 
+      Loop Until startIndex=0     
+    End Function
+    
+    Sub chkSoftwareClick()
+      If chkSoftware.checked Then
+        h2SoftwareInstalled.style.visibility = "hidden"
+        pSoftwareInstalled.style.visibility = "hidden"
+        
+        h2SoftwareInstalled.style.display = "none"
+        pSoftwareInstalled.style.display = "none"        
+      Else
+        h2SoftwareInstalled.style.visibility = "visible"
+        pSoftwareInstalled.style.visibility = "visible"
+        
+        h2SoftwareInstalled.style.display = "inline"
+        pSoftwareInstalled.style.display = "inline"  
+      End If
+    End Sub
+      
+    Sub GetGeneralInfo()     
+      On Error Resume Next
+      
+      If ItemWin32ComputerSystem.PartOfDomain Then
+        document.write(FormatRowHeader("Domain",False) & ItemWin32ComputerSystem.Domain & " [" & _
+          Array("Standalone Workstation", "Member Workstation", "Standalone Server", "Member Server", "Backup Domain Controller", "Primary Domain Controller")(ItemWin32ComputerSystem.DomainRole) & "]")
+      Else
+          document.write(FormatRowHeader("Workgroup", False) & ItemWin32ComputerSystem.Workgroup)
+      End If
+      
+      document.write(FormatRowHeader("Organization", True) & ItemWin32OperatingSystem.Organization)
+      document.write(FormatRowHeader("Registered user", True) & ItemWin32OperatingSystem.RegisteredUser)
+    End Sub
+    
+    Sub GetHWInfo()
+      Dim query, i
+      
+      On Error Resume Next
+      
+      document.write(FormatRowHeader("Model", False) & ItemWin32ComputerSystem.Manufacturer & " " & ItemWin32ComputerSystem.Model)
+      'document.write("<br>Type = " & ItemWin32ComputerSystem.SystemType)
+
+      Set query = WMI.InstancesOf("Win32_BaseBoard")
+      
+      For Each i in query
+        document.write(FormatRowHeader("Serial Number", True) & i.SerialNumber)
+      Next
+      
+      Set i = Nothing
+      Set query = Nothing
+      Set query = WMI.InstancesOf("Win32_BIOS")
+
+      For Each i in query
+        document.write(FormatRowHeader("BIOS" , True) & i.SMBIOSBIOSVersion)
+        
+        document.write(" " & Left(i.ReleaseDate,4) & "-" & _
+          Mid(i.ReleaseDate,5,2) & "-" & _
+          Mid(i.ReleaseDate,7,2))
+      Next
+      
+      Set i = Nothing
+      Set query = Nothing
+    End Sub
+    
+    Sub GetCPUInfo()
+      'http://support.microsoft.com/kb/888282/it
+      Dim cpus, cpu, i, cpuID
+      
+      On Error Resume Next
+      
+      document.write(FormatRowHeader("CPUs", True) & ItemWin32ComputerSystem.NumberOfProcessors)
+      
+      Set cpus = WMI.InstancesOf("Win32_Processor")
+      
+      i = 1
+      cpuID=0
+      For Each cpu in cpus
+        document.write(FormatRowHeader("CPU " & i, True) & _
+            ReadRegistryKey("HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\" & _
+            cpuID & "\ProcessorNameString"))
+        document.write(" - Cores:" & cpu.NumberOfCores)
+        
+        cpuID = i * cpu.NumberOfLogicalProcessors
+        i = i + 1
+      Next
+      
+      Set cpu = Nothing
+      Set cpus = Nothing
+    End Sub
+    
+    Sub GetRAMInfo()
+      Dim physicalMemories, pm, ram, ramUM, ramBanks, ramBankCapacity
+      
+      On Error Resume Next
+      Set physicalMemories = WMI.InstancesOf("Win32_PhysicalMemory")
+      
+      ram=0 : ramBanks = 0
+      For Each pm in physicalMemories
+      
+        'Esclusione Flash
+        If pm.MemoryType <> 11 Then 
+          ramBankCapacity = pm.Capacity
+          
+          ramUM="Bytes"
+          If ramBankCapacity > 1024 Then ramBankCapacity=ramBankCapacity/1024 : ramUM="KB"
+          If ramBankCapacity > 1024 Then ramBankCapacity=ramBankCapacity/1024 : ramUM="MB"
+          If ramBankCapacity > 1024 Then ramBankCapacity=ramBankCapacity/1024 : ramUM="GB"     
+          document.write(FormatRowHeader("RAM Bank " & (ramBanks+1), True) & ramBankCapacity & " " & ramUM)
+
+          If pm.MemoryType = 2 Then document.write(" DRAM")       
+          If pm.MemoryType = 3 Then document.write(" Synchronous DRAM")       
+          If pm.MemoryType = 5 Then document.write(" EDO")       
+          If pm.MemoryType = 6 Then document.write(" EDRAM")       
+          If pm.MemoryType = 7 Then document.write(" VRAM")       
+          If pm.MemoryType = 8 Then document.write(" SRAM")       
+          If pm.MemoryType = 9 Then document.write(" RAM")       
+          If pm.MemoryType = 15 Then document.write(" CDRAM")       
+          If pm.MemoryType = 16 Then document.write(" 3DRAM")       
+          If pm.MemoryType = 17 Then document.write(" SDRAM")       
+          If pm.MemoryType = 18 Then document.write(" SGRAM")       
+          If pm.MemoryType = 19 Then document.write(" RDRAM")                
+          If pm.MemoryType = 20 Then document.write(" DDR")       
+          If pm.MemoryType = 21 Then document.write(" DDR-2")       
+
+          If pm.FormFactor = 7 Then document.write(" SIMM")       
+          If pm.FormFactor = 8 Then document.write(" DIMM")       
+          If pm.FormFactor = 9 Then document.write(" TSOP")       
+          If pm.FormFactor = 10 Then document.write(" PGA")       
+          If pm.FormFactor = 11 Then document.write(" RIMM")       
+          If pm.FormFactor = 12 Then document.write(" SODIMM")       
+          If pm.FormFactor = 13 Then document.write(" SRIMM")       
+          If pm.FormFactor = 14 Then document.write(" SMD")       
+          If pm.FormFactor = 15 Then document.write(" SSMP")       
+          If pm.FormFactor = 16 Then document.write(" QFP")       
+          If pm.FormFactor = 17 Then document.write(" TQFP")       
+          If pm.FormFactor = 18 Then document.write(" SOIC")       
+          If pm.FormFactor = 19 Then document.write(" LCC")       
+          If pm.FormFactor = 20 Then document.write(" PLCC")       
+          If pm.FormFactor = 21 Then document.write(" BGA")       
+          If pm.FormFactor = 22 Then document.write(" FPBGA")       
+          If pm.FormFactor = 22 Then document.write(" LGA")
+
+          If pm.TypeDetail = 64 Then document.write(" RAMBUS")
+          If pm.TypeDetail = 128 Then document.write(" Synchronous")
+          If pm.TypeDetail = 512 Then document.write(" EDO")
+          If pm.TypeDetail = 1024 Then document.write(" Window DRAM")
+                  
+          If Not IsNull(pm.Speed) Then document.write(" " & pm.Speed & " ns.")       
+          If pm.BankLabel<> "" And pm.BankLabel<> "None" Then document.write(" " & pm.BankLabel)  
+          
+          document.write(" (" & pm.DeviceLocator & "-" & pm.Tag & ")")
+
+  
+          ram = ram + pm.Capacity
+          ramBanks = ramBanks + 1
+        End If
+      Next
+      
+      ramUM="Bytes"
+      If ram > 1024 Then ram=ram/1024 : ramUM="KB"
+      If ram > 1024 Then ram=ram/1024 : ramUM="MB"
+      If ram > 1024 Then ram=ram/1024 : ramUM="GB"
+      
+      document.write(FormatRowHeader("RAM Total", True) & ram & " " & ramUM )
+      
+      Set pm = Nothing
+      Set physicalMemories = Nothing
+    End Sub
+    
+    Sub GetStorageInfo()
+      Dim diskDrives, disk, index, controllers, c, drivers, d
+      
+      On Error Resume Next
+      Set diskDrives = WMI.InstancesOf("Win32_DiskDrive")
+      
+      index=1
+      For Each disk in diskDrives
+        If index > 1 Then document.write("<br>")
+        document.write(FormatRowHeader("Hard Disk " & index , False) & FormatBytes(disk.Size, True))
+        'document.write(" " & disk.MediaType)
+        document.write(" " & disk.InterfaceType)
+        document.write(" - " & disk.Model)
+        If disk.FirmwareRevision <> "" Then document.write(FormatSubRowHeader("Firmware") & disk.FirmwareRevision)
+        index = index + 1
+      Next
+      
+      'Controllers IDE
+      Set controllers = WMI.InstancesOf("Win32_IDEController")
+      index=1
+      For Each c in controllers
+        if UCase(Left(c.DeviceID,7)) = "PCI\VEN" Then
+          document.write(FormatRowHeader("Controller " & index, True) & c.Name)
+          If InStr(c.Name, " IDE") = 0 Then document.write(" - IDE")
+
+          Set drivers = WMI.ExecQuery( _
+            "SELECT * FROM Win32_PnPSignedDriver WHERE DeviceID = '" & Replace(c.PNPDeviceID,"\","\\") & "'")
+          For Each d In drivers            
+            document.write(FormatSubRowHeader("Driver") & d.DriverProviderName)
+            document.write(" " & d.DriverVersion)
+            document.write(" " & Left(d.DriverDate,4) & "-" & _
+              Mid(d.DriverDate,5,2) & "-" & _
+              Mid(d.DriverDate,7,2))
+            if d.IsSigned Then document.write(" Signed") Else document.write(" Signed")
+          Next
+          
+          index = index + 1
+        End If
+      Next
+      
+      'Controllers SCSI
+      Set controllers = WMI.InstancesOf("Win32_SCSIController")
+      For Each c in controllers
+        if UCase(Left(c.DeviceID,7)) = "PCI\VEN" Then              
+          document.write(FormatRowHeader("Controller " & index, True) & c.Name)
+          If InStr(c.Name, " SCSI") = 0 Then document.write(" - SCSI")
+          If c.HardwareVersion <> "" Then document.write(FormatSubRowHeader("HW ver") & c.HardwareVersion)
+          
+          Set drivers = WMI.ExecQuery( _
+            "SELECT * FROM Win32_PnPSignedDriver WHERE DeviceID = '" & Replace(c.PNPDeviceID,"\","\\") & "'")
+          For Each d In drivers            
+            document.write(FormatSubRowHeader("Driver") & d.DriverProviderName)
+            document.write(" " & d.DriverVersion)
+            document.write(" " & Left(d.DriverDate,4) & "-" & _
+              Mid(d.DriverDate,5,2) & "-" & _
+              Mid(d.DriverDate,7,2))
+            if d.IsSigned Then document.write(" Signed") Else document.write(" Signed")          
+          Next
+                   
+          index = index + 1
+        End If
+      Next
+      
+      Set d = Nothing
+      Set drivers = Nothing
+      Set c = Nothing
+      Set controllers = Nothing
+      Set disk = Nothing
+      Set diskDrives = Nothing
+    End Sub
+    
+    Sub GetNICInfo()
+      Dim nics, nic, nicIndex, links, link, driver, drivers
+
+      On Error Resume Next
+      Set nics = WMI.ExecQuery("SELECT * FROM Win32_NetworkAdapter")
+
+      nicIndex = 1
+      For Each nic In nics
+          If nic.NetConnectionID <> "" Then 'UCase(Left(nic.PNPDeviceID,7)) = "PCI\VEN" Then
+            If nicIndex > 1 Then document.write("<br>")
+            
+            document.write(FormatRowHeader("Network adapter " & nicIndex, False) & nic.Name)
+
+            'Speed
+            Set links = GetObject("winmgmts:\\.\root\WMI").ExecQuery( _
+          	  "SELECT * FROM MSNdis_LinkSpeed WHERE InstanceName='" & nic.Name & "'" )
+            For Each link In links
+              document.write(" " & FormatBps(link.NdisLinkSpeed * 100, True))
+            Next
+           
+            Set drivers = WMI.ExecQuery( _
+              "SELECT * FROM Win32_PnPSignedDriver WHERE DeviceID = '" & Replace(nic.PNPDeviceID,"\","\\") & "'")
+            For Each driver In drivers            
+            document.write(FormatSubRowHeader("Driver") & driver.DriverProviderName)
+              document.write(" " & driver.DriverVersion)
+              document.write(" " & Left(driver.DriverDate,4) & "-" & _
+                Mid(driver.DriverDate,5,2) & "-" & _
+                Mid(driver.DriverDate,7,2))
+              if driver.IsSigned Then document.write(" Signed") Else document.write(" Signed") 
+            Next
+            
+            document.write(FormatSubRowHeader("Type") & nic.AdapterType)  
+            document.write(" (MAC: " & nic.MACAddress & ")")
+       
+            nicIndex = nicIndex + 1
+          End If
+      Next
+
+      Set drivers = Nothing
+      Set driver = Nothing
+      Set links = Nothing
+      Set link = Nothing
+      Set nics = Nothing
+      Set nic = Nothing
+    End Sub
+    
+    Sub GetOSInfo()
+      Dim dtmConvertedDate, lngDescription
+
+      On Error Resume Next
+   
+      Set dtmConvertedDate = CreateObject("WbemScripting.SWbemDateTime")
+
+      document.write(FormatRowHeader("Version", False) & ItemWin32OperatingSystem.Caption & " " & ItemWin32OperatingSystem.CSDVersion)
+      
+      Err.Clear()
+      document.write(" " & ItemWin32OperatingSystem.OSArchitecture)
+      If Err <> 0 Then     
+        document.write(" " & Env("PROCESSOR_ARCHITECTURE"))
+      End If
+        
+      document.write(FormatRowHeader("Release", True) & ItemWin32OperatingSystem.Version)
+      'document.write("<br>Build = " & os.BuildNumber & " " & os.BuildType)
+      document.write(" Service Pack: " & ItemWin32OperatingSystem.ServicePackMajorVersion & "." & ItemWin32OperatingSystem.ServicePackMinorVersion)
+      document.write(FormatRowHeader("Language", True) & ItemWin32OperatingSystem.OSlanguage)
+      lngDescription = ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Classes\MIME\Database\Rfc1766\" & PadZero(Hex(ItemWin32OperatingSystem.OSlanguage),4))
+      lngDescription = Left(lngDescription, InStr(lngDescription, ";")-1)
+      lngDescription = UCase(lngDescription)
+      document.write(" " & lngDescription)
+
+      dtmConvertedDate.Value = ItemWin32OperatingSystem.InstallDate
+      document.write(FormatRowHeader( "Install date", True) & dtmConvertedDate.GetVarDate)  
+
+      'document.write("<br>Serial number = " & os.SerialNumber)
+      document.write(FormatRowHeader("Product key", True) & DecodeDigitalProductID( _
+        ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\DigitalProductId")))
+          
+      dtmConvertedDate.Value = ItemWin32OperatingSystem.LastBootUpTime
+      document.write(FormatRowHeader("Last boot date", True) & dtmConvertedDate.GetVarDate)
+
+      document.write(FormatRowHeader("Windows Update", True) & _
+        ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Download\LastSuccessTime"))
+      document.write(" (last detect: " & ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Detect\LastSuccessTime") & ")")
+
+      Set dtmConvertedDate = Nothing
+    End Sub
+    
+    Sub GetSoftwareInstalled()
+    
+      Dim softwares, software, name, installDate, vendor, version
+      
+      On Error Resume Next
+      
+      Set softwares = WMI.ExecQuery("SELECT IdentifyingNumber, Name, Vendor, Version FROM Win32_Product WHERE InstallState=5 ")
+      
+      document.write("<table class=""tableDetail"">")
+      document.write("<thead class=""theadDetail"">")
+      document.write("<tr>")
+      document.write("<th class=""thDetail"">Name</th>")
+      document.write("<th class=""thDetail"">Vendor</th>")
+      document.write("<th class=""thDetail"">Version</th>")
+      document.write("<th class=""thDetail"">Installed on</th>")
+      document.write("</tr>")
+      document.write("</thead>")
+      document.write("<tbody>")
+
+      For Each software In softwares
+        name = software.Name
+        If IsNull(name) Then
+          name=ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" & software.IdentifyingNumber & "\DisplayName")
+          If IsNull(name) Then
+            name = software.IdentifyingNumber
+          End If
+        End If
+        vendor = Software.Vendor
+        version= Software.Version
+        installDate=ReadRegistryKey("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" & software.IdentifyingNumber & "\InstallDate")
+        If Not IsNull(installDate) Then
+          installDate = Left(installDate,4) & "-" & Mid(installDate,5,2) &  "-" & Mid(installDate,7,2)
+        End If
+
+        document.write("<tr>")      
+        document.write("<td class=""tdDetail"">" & name & "</td>")
+        document.write("<td class=""tdDetailCenter"">" & vendor & "</td>")
+        document.write("<td class=""tdDetailCenter"">" & version & "</td>")
+        document.write("<td class=""tdDetailCenter"">" & installDate & "</td>")
+        document.write("</tr>")
+      Next
+      
+      document.write("</tbody>")
+      document.write("</table>")
+    End Sub
+    
+    Function DecodeDigitalProductID(id) 
+      Const idOffset=52 
+      Const Digits="BCDFGHJKMPQRTVWXY2346789"
+
+      Dim i,accumulator,j,productKey
+      i=28
+  
+      Do 
+        accumulator=0
+        j=14
+
+        Do 
+          accumulator=accumulator*256 
+          accumulator=id(j+idOffset)+accumulator 
+          id(j+idOffset)=(accumulator\24) and 255  
+          accumulator=accumulator Mod 24 
+          j=j-1 
+        Loop While j>=0
+
+        i=i-1 
+        productKey=mid(Digits,accumulator+1,1) & productKey
+
+        If (((29-i) Mod 6)=0) and (i<>-1) then 
+          i=i-1 
+          productKey="-" & productKey 
+        End If
+
+      Loop While i>=0
+
+      DecodeDigitalProductID=productKey 
+    End Function 
+
+    Function GetWindowsInstallerVersion()
+      Dim wi
+      GetWindowsInstallerVersion = ""
+
+      On Error Resume Next
+      Set wi = createobject("windowsinstaller.installer")
+
+      GetWindowsInstallerVersion = wi.version
+      Set wi = nothing
+    End Function   
+
+    Function ReadRegistryKey(path)        
+      ReadRegistryKey = Null
+      
+      On Error Resume Next
+      ReadRegistryKey = Shell.RegRead(path)
+    End Function
+    
+    Function PadZero(number, digits)
+      If Len(number) > digits Then
+        PadZero = number
+      Else
+        PadZero = Right(String(digits, "0") & number, digits)
+      End If
+    End Function
+    
+    Function FormatBytes(bytes, round)
+      Dim value, um
+      value=bytes
+      um = "Bytes"
+      
+      If value >= 1024 Then value=value/1024 : um="KB"
+      If value >= 1024 Then value=value/1024 : um="MB"
+      If value >= 1024 Then value=value/1024 : um="GB"
+      If value >= 1024 Then value=value/1024 : um="TB"
+      
+      If round Then value = Int(value)
+      FormatBytes = value & " " & um     
+    End Function
+    
+    Function FormatBps(bps, round)
+      Dim value, um
+      value=bps
+      um = "Bps"
+           
+      If value >= 1000 Then value=value/1000 : um="Kbps"
+      If value >= 1000 Then value=value/1000 : um="Mbps"
+      If value >= 1000 Then value=value/1000 : um="Gbps"
+      If value >= 1000 Then value=value/1000 : um="Tbps"
+      
+      If round Then value = Int(value)
+      FormatBps = value & " " & um     
+    End Function
+    
+    Function HTMLSpace(number)
+      Dim i
+      
+      For i=1 to number
+        HTMLSpace = HTMLSpace & "&nbsp;"
+      Next
+    End Function
+    
+    Function PadRightHTML(text, lenght)
+      Dim currentLenght
+      currentLenght = Len(text)
+      PadRightHTML = text
+      
+      Do Until currentLenght >= lenght
+        PadRightHTML = PadRightHTML & "&nbsp;"
+        currentLenght = currentLenght + 1
+      Loop
+    End Function
+    
+    Sub Line(lenght)
+      document.write("<br>" & String(lenght,"—"))        
+    End Sub
+    
+    Function FormatRowHeader(text, addBR)
+      FormatRowHeader = PadRightHTML(text,RowHeaderWidth) & "= "
+      If addBR Then FormatRowHeader = "<br>" & FormatRowHeader     
+    End Function
+    
+    Function FormatRowData(text)
+      FormatRowData = "<br>" & HTMLSpace(RowHeaderWidth + 2) & text
+    End Function 
+    
+    Function FormatSubRowHeader(text)
+      FormatSubRowHeader = "<br>" & HTMLSpace(RowHeaderWidth + 2) & _
+        PadRightHTML(text & ":", RowSubHeaderWidth)   
+    End Function
+  </script> 
+</head> 
+
+<body>
+<script type="text/vbscript">InitResources()</script>
+<table id="tblToolBar" style="width:100%">
+  <tr>
+    <td width="50 px"><button type="button" onclick="window.print()" id="btnPrint">Print</button></td>
+    <td width="50 px"><button type="button" onclick="Save()" id="btnSave">Save</button></td>
+    <td width="160 px"><input type="checkbox" onclick="chkSoftwareClick()" id="chkSoftware">Hide 
+        software installed</td>
+    <td style="text-align:right"><a href="http://sysinfohta.codeplex.com">SysInfo.hta</a> by <a href="http://blogs.sysadmin.it/ermannog">Ermanno Goletto</a></td>
+  </tr>
+</table>
+<hr id="hrToolBar" />
+
+<h1 id="h1Header"><script>document.write(GetHostName())</script></h1>
+
+<h2 id="h2Notes">Notes</h2>
+<p id="pNotes"><textarea id="txtNotes" style="width:100%; height:90 px"></textarea></p>
+
+    
+<h2 id="h2General">General</h2>
+<p id="pGeneral"><script type="text/vbscript">GetGeneralInfo()</script></p>
+
+<h2 id="h2Hardware">Hardware</h2> 
+<p id="pHardware"><script type="text/vbscript">GetHWInfo():GetCPUInfo():GetRAMInfo()</script></p>
+
+<h2 id="h2Storage">Storage</h2> 
+<p id="pStorage"><script type="text/vbscript">GetStorageInfo()</script></p>
+
+<h2 id="h2Network">Network</h2> 
+<p id="pNetwork"><script type="text/vbscript">GetNICInfo()</script></p>
+
+<h2 id="h2OperatingSystem">Operating System</h2> 
+<p id="pOperatingSystem"><script type="text/vbscript">GetOSInfo()</script></p>
+
+<h2 id="h2SystemComponents">System components</h2> 
+
+<p id="pSystemComponents">
+<script type="text/vbscript">
+document.write(FormatRowHeader("Windows Installer", False) & GetWindowsInstallerVersion())
+document.write(FormatRowHeader("Internet Explorer", True) & ReadRegistryKey("HKLM\Software\Microsoft\Internet Explorer\Version"))
+document.write(FormatRowHeader("Scripting Engine", True) & ScriptEngine & " " & _
+  ScriptEngineMajorVersion & "." & ScriptEngineMinorVersion & "." & ScriptEngineBuildVersion)
+</script>
+</p>
+
+<!-- http://support.microsoft.com/kb/318785/en-us -->
+<h2 id="h2DotNET">.NET Framework</h2> 
+<p id="pDotNET">
+<script type="text/vbscript">
+Option Explicit
+
+Dim versions
+versions = 0
+
+'NET 1.1
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v1.1.4322\Install") = "1" Then
+  document.write("1.1 <br>")
+  versions = versions + 1
+End If
+
+'NET 1.1 SP1
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v1.1.4322\SP") = "1" Then
+  document.write("1.1 SP1 <br>")
+  versions = versions + 1
+End If
+
+'NET 2.0
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v2.0.50727\Install") = "1" Then
+  document.write("2.0 <br>")
+  versions = versions + 1
+End If
+
+'NET 2.0 SP1
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v2.0.50727\SP") = "1" Then
+  document.write("2.0 SP1<br>")
+  versions = versions + 1
+End If
+
+'NET 2.0 SP2
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v2.0.50727\SP") = "2" Then
+  document.write("2.0 SP2<br>")
+  versions = versions + 1
+End If
+
+'NET 3.0
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v3.0\Installed") = "1" Then
+  document.write("3.0<br>")
+  versions = versions + 1
+End If
+
+'NET 3.0 SP1
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v3.0\SP") = "1" Then
+  document.write("3.0 SP1<br>")
+  versions = versions + 1
+End If
+
+'NET 3.0 SP2
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v3.0\SP") = "2" Then
+  document.write("3.0 SP2<br>")
+  versions = versions + 1
+End If
+
+'NET 3.5
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v3.5\Install") = "1" Then
+  document.write("3.5<br>")
+  versions = versions + 1
+End If
+
+'NET 3.5 SP1
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v3.5\SP") = "1" Then
+  document.write("3.5 SP1<br>")
+  versions = versions + 1
+End If
+
+'NET 4 Full
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v4\Full\Install") = "1" Then
+  document.write("4 Full version: " & ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v4\Full\Version") & "<br>")
+  versions = versions + 1
+End If
+
+'NET 4 Client
+If ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v4\Client\Install") = "1" Then
+  document.write("4 Client version: " & ReadRegistryKey("HKLM\Software\Microsoft\NET Framework Setup\NDP\v4\Client\Version") & "<br>")
+  versions = versions + 1
+End If
+
+'Number o versions installed
+If versions = 0 Then
+  document.write(".NET Framework not installed.")
+Else
+  document.write("<br>")
+  document.write(versions & " versions of .NET Framework are installed.")
+End If
+</script>
+</p>
+
+<h2 id="h2SoftwareInstalled" style="page-break-before:always">Software installed</h2> 
+<p id="pSoftwareInstalled"><script type="text/vbscript">GetSoftwareInstalled()</script></p>
+
+<hr id="hrFooter" />
+<p id="pFooter"><b>Scan performed by <script>document.write(htaSysInfo.applicationname & " " & htaSysInfo.version & " on " & Now)</script></b></p>
+
+<script type="text/vbscript">ReleaseResources()</script>
+
+</body> 
+</html>
