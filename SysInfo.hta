@@ -22,12 +22,13 @@
   </STYLE>
   <hta:application id="htaSysInfo" 
     applicationname="SysInfo.hta"
-    version="2.0"
+    version="2.1"
     singleinstance="yes"
     minimizeButton="no" 
     maximizeButton="yes" 
     windowstate="maximize"
-    borderStyle="static" /> 
+    borderStyle="static"
+    navigable="yes" /> 
   <script language="vbscript">
     Option Explicit
     
@@ -683,7 +684,7 @@
     <td width="50 px"><button type="button" onclick="Save()" id="btnSave">Save</button></td>
     <td width="160 px"><input type="checkbox" onclick="chkSoftwareClick()" id="chkSoftware">Hide 
         software installed</td>
-    <td style="text-align:right"><a href="http://sysinfohta.codeplex.com">SysInfo.hta</a> by <a href="http://blogs.sysadmin.it/ermannog">Ermanno Goletto</a></td>
+    <td style="text-align:right"><a href="https://github.com/ermannog/SysInfoHTA"  target="_blank">SysInfo.hta</a> by <a href="https://www.devadmin.it"  target="_blank">Ermanno Goletto</a></td>
   </tr>
 </table>
 <hr id="hrToolBar" />
